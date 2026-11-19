@@ -156,6 +156,8 @@ th[aria-sort="descending"] button::after { content: "↓"; }
 th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
 tbody tr:hover { background: var(--track); }
 tfoot td { font-weight: 600; border-bottom: 0; background: var(--bg); }
+tfoot .foot-extra td { font-weight: 400; color: var(--muted); border-top: 1px solid var(--line); white-space: normal; }
+tfoot .foot-total td { font: 700 1.15rem var(--font-display); border-top: 1px solid var(--line); color: var(--river); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
 .empty { padding: 24px; text-align: center; color: var(--muted); }
 /* Celular: linhas viram cartões */
@@ -171,7 +173,9 @@ tfoot td { font-weight: 600; border-bottom: 0; background: var(--bg); }
   td.t-head { grid-column: 1 / -1; font: 700 18px var(--font-display); }
   td.t-head::before { display: none; }
   td.t-total { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 8px; font-weight: 600; }
-  tfoot { display: block; margin-top: 10px; }
+  tfoot { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  tfoot .foot-extra td, tfoot .foot-total td { border-top: 0; }
+  tfoot .foot-extra td:first-child { flex: 1; padding-right: 12px; }
   tfoot tr { display: flex; justify-content: space-between; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
   tfoot td { background: transparent; }
   tfoot td:empty { display: none; }

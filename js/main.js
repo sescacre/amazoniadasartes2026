@@ -153,6 +153,8 @@ const COLS = [
   { k: "total", t: "Total da circulação", f: BRL.format, cls: "t-total" },
 ];
 const state = { lang: "", q: "", sort: null, dir: 1 };
+// Rubricas que não dependem dos grupos (custo fixo de cada regional × 10)
+const DESPESAS_REGIONAIS = RUBRICAS.filter(r => !["Cachês", "Hospedagem", "Custo de produção"].includes(r.nome));
 function renderChips() {
   const opts = ["", ...LINGUAGENS];
   document.getElementById("chips").replaceChildren(...opts.map(l => el("button", {
@@ -172,10 +174,21 @@ function renderTable() {
     i === 0 ? el("span", { class: "dot", style: "background:" + css(LANG_COLOR[g.linguagem]) }) : null,
     c.f ? c.f(g[c.k]) : g[c.k]))))
     : [el("tr", {}, el("td", { colspan: String(COLS.length), class: "empty" }, "Nenhum grupo encontrado com esse filtro."))]));
-  tbl.tFoot.replaceChildren(el("tr", {},
+  const foot = [el("tr", {},
     el("td", {}, rows.length + (rows.length === 1 ? " linha" : " linhas")), el("td"),
     el("td", { class: "num" }, NUM.format(sum(rows, g => g.integrantes)) + " artistas"), el("td"), el("td"), el("td"), el("td"),
-    el("td", { class: "num" }, BRL.format(sum(rows, g => g.total)))));
+    el("td", { class: "num" }, BRL.format(sum(rows, g => g.total))))];
+  // Sem filtro: liga o subtotal dos grupos ao total do orçamento somando as despesas por regional
+  if (!state.lang && !q) {
+    foot.push(
+      el("tr", { class: "foot-extra" },
+        el("td", { colspan: String(COLS.length - 1) }, "Despesas por regional (" + DESPESAS_REGIONAIS.map(r => r.nome.toLowerCase()).join(", ") + ")"),
+        el("td", { class: "num" }, BRL.format(sum(DESPESAS_REGIONAIS, r => r.valor)))),
+      el("tr", { class: "foot-total" },
+        el("td", { colspan: String(COLS.length - 1) }, "Total do orçamento"),
+        el("td", { class: "num" }, BRL.format(TOTAL))));
+  }
+  tbl.tFoot.replaceChildren(...foot);
 }
 document.getElementById("search").addEventListener("input", e => { state.q = e.target.value; renderTable(); });
 
