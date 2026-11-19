@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Amazônia das Artes 2026/27</title>
+<meta name="description" content="Orçamento da circulação Sesc Amazônia das Artes 2026/27 pelos 10 regionais.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@500;600;700&family=Quicksand:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/dados.js" defer></script>
+<script src="js/main.js" defer></script>
+</head>
+<body>
+
+<nav class="nav" aria-label="Seções">
+  <div class="wrap">
+    <a class="brand" href="#topo">Amazônia <span>das Artes</span></a>
+    <ul>
+      <li><a class="link" href="#orcamento">Orçamento</a></li>
+      <li><a class="link" href="#linguagens">Linguagens</a></li>
+      <li><a class="link" href="#grupos">Grupos</a></li>
+      <li><a class="link" href="#atencao">Atenção</a></li>
+      <li><a class="link" href="#referencias">Referências</a></li>
+    </ul>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Alternar tema claro ou escuro">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+</nav>
+
+<header class="hero" id="topo">
+  <img class="leaf l" src="img/folha-esq.jpg" alt="" aria-hidden="true">
+  <img class="leaf r" src="img/folha-dir.jpg" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="hero-top">
+      <h1><img src="img/logo-claro.png" width="573" height="380" alt="Sesc Amazônia das Artes · Entre amazônias"></h1>
+      <div>
+        <p class="eyebrow">Orçamento da circulação 2026/27 · 10 departamentos regionais</p>
+        <p class="lead" id="lead"></p>
+      </div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+  </div>
+  <img class="fauna" src="img/fauna.jpg" alt="Ilustração de uma onça-pintada entre folhagens e uma helicônia, da arte do evento">
+</header>
+<div class="checker" id="checker" aria-hidden="true"></div>
+
+<main class="wrap">
+  <section id="orcamento" class="reveal">
+    <div class="sec-head">
+      <h2>Para onde vai o dinheiro</h2>
+      <p>As 8 rubricas do orçamento somadas nos 10 regionais. Passe o mouse ou toque numa fatia para ver como cada valor é calculado.</p>
+    </div>
+    <div class="card">
+      <div class="donut-box">
+        <div class="donut" id="donut"></div>
+        <ul class="legend" id="legend"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="linguagens" class="reveal">
+    <div class="sec-head">
+      <h2>Custo dos artistas por linguagem</h2>
+      <p>Cachê, custo de produção e hospedagem de cada linguagem. Transfer, transporte interno, produção local, alimentação e divulgação são despesas por regional e não entram aqui.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Total da circulação</h3>
+        <p class="sub">Somado nos 10 regionais (filmes: licenciamento único)</p>
+        <div class="keys" id="keys"></div>
+        <div class="bars" id="langBars"></div>
+      </div>
+      <div class="card">
+        <h3>Custo por artista</h3>
+        <p class="sub">Total da linguagem dividido pelo número de integrantes</p>
+        <div class="bars" id="perArtist"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="grupos" class="reveal">
+    <div class="sec-head">
+      <h2>Grupos e filmes</h2>
+      <p>Valores de uma apresentação em um regional e o total da circulação. Clique nos títulos das colunas para ordenar.</p>
+    </div>
+    <div class="toolbar">
+      <div class="chips" id="chips" role="group" aria-label="Filtrar por linguagem"></div>
+      <input class="search" id="search" type="search" placeholder="Buscar estado…" aria-label="Buscar por estado de origem">
+    </div>
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section id="atencao" class="reveal">
+    <div class="sec-head">
+      <h2>Pontos de atenção</h2>
+      <p>Divergências encontradas ao comparar as abas da planilha. Nenhum valor foi alterado: os números desta página são os da planilha como está.</p>
+    </div>
+    <ul class="points" id="points"></ul>
+  </section>
+
+  <section id="referencias">
+    <details class="card">
+      <summary>Valores de referência e programação local</summary>
+      <div class="grid2">
+        <div>
+          <p class="note">Preços unitários usados no orçamento, com reajuste de 5%.</p>
+          <div class="ref-table"><table id="refTbl"></table></div>
+        </div>
+        <div>
+          <p class="note">Bloco de programação local da planilha. Ele não está somado no orçamento total.</p>
+          <div class="ref-table"><table id="progTbl"></table></div>
+        </div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <img src="img/logo-cor.png" class="foot-logo logo-light" width="573" height="380" alt="Sesc Amazônia das Artes">
+    <img src="img/logo-claro.png" class="foot-logo logo-dark" width="573" height="380" alt="Sesc Amazônia das Artes">
+    <p>Fonte: planilha “SESC AMAZONIA DAS ARTES 202627.xlsx” (versão de 18/11/2026), abas ORÇAMENTO, REFERÊNCIAS e Lista Orçamento. Pontos de atenção: análise comparativa das abas.</p>
+  </div>
+</footer>
+
+<div class="tip" id="tip" hidden></div>
+
+</body>
+</html>
