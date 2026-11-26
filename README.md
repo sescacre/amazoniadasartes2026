@@ -44,4 +44,4 @@ As cores são definidas uma vez em `css/style.css` com `light-dark(claro, escuro
 
 ## Fonte
 
-Planilha “SESC AMAZONIA DAS ARTES 202627 v2.xlsx” (26/11/2026), abas ORÇAMENTO, Detalhamento e AÉREOS.
+Planilha “SESC AMAZONIA DAS ARTES 202627 v3.xlsx” (26/11/2026), abas ORÇAMENTO, Detalhamento e AÉREOS.

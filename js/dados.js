@@ -1,9 +1,9 @@
-/* Dados do orçamento, copiados da planilha "SESC AMAZONIA DAS ARTES 202627 v2.xlsx" sem alterações
+/* Dados do orçamento, copiados da planilha "SESC AMAZONIA DAS ARTES 202627 v3.xlsx" sem alterações
    (abas ORÇAMENTO, Detalhamento e AÉREOS). Valores sem reajuste. */
 
 const FONTE = {
-  arquivo: "SESC AMAZONIA DAS ARTES 202627 v2.xlsx",
-  versao: "v2 · 26/11/2026",
+  arquivo: "SESC AMAZONIA DAS ARTES 202627 v3.xlsx",
+  versao: "v3 · 26/11/2026",
   abas: "ORÇAMENTO, Detalhamento e AÉREOS",
 };
 
@@ -18,9 +18,9 @@ const GRUPOS = [
   ["Circo", "(I) Mundo de Sofia", "Amazonas", 3, 10, 37000, 7500, 12285, 75000, 1350],
   ["Circo", "Marias da Terra", "Piauí", 4, 10, 44000, 8500, 15840, 100000, 1800],
   ["Teatro", "Ô de Casa", "Pará", 4, 10, 44000, 9000, 15840, 100000, 1800],
-  ["Teatro", "Cordel do Amor Sem Fim", "Roraima", 5, 10, 50000, 11250, 26160, 125000, 2250],
+  ["Teatro", "Apresentação em Artes Cênicas", "Roraima", 5, 10, 50000, 11250, 26160, 125000, 2250],
   ["Teatro", "O Amor é Apertado no Peito do Homem Torto", "Amapá", 5, 10, 50000, 11250, 21840, 125000, 2250],
-  ["Teatro", "O Menino Inventador", "Mato Grosso", 4, 10, 50000, 9000, 15840, 100000, 1800],
+  ["Teatro", "Henrique Maluf - Fronteira Pantaneira", "Mato Grosso", 4, 10, 50000, 9000, 15840, 100000, 1800],
   ["Literatura", "Bicho que vira gente, gente que vira bicho", "Maranhão", 4, 10, 44000, 9000, 18240, 100000, 1800],
   ["Literatura", "Mapinguari", "Rondônia", 1, 10, 37000, 2250, 6000, 25000, 450],
   ["Literatura", "Poesia ao Pé do Ouvido", "Tocantins", 2, 10, 37000, 4500, 7920, 50000, 900],
@@ -100,7 +100,7 @@ const ROTEIRO_EXPOSICOES = [
   { titulo: "Cacau Ruby", origem: "RO", roteiro: [["TO", "24/03 – 22/04"], ["MA", "08/05 – 06/06"], ["MT", "06/08 – 04/09"], ["RR", "19/10 – 23/11"]] },
 ];
 
-// Divergências encontradas ao analisar a planilha v2. g = prioridade (Alta, Média, Baixa).
+// Divergências encontradas ao analisar a planilha (v2; continuam na v3, que só mudou nomes de grupos). g = prioridade (Alta, Média, Baixa).
 const PONTOS = [
   { tema: "Aéreo das exposições fora do total", g: "Alta", impacto: 25000, rotulo: "Valor fora do total",
     texto: "O total geral de transfer aéreo (G26) vem só da aba AÉREOS, que tem os 10 grupos. O aéreo das 3 exposições (R$ 2.500 por regional) aparece na aba ORÇAMENTO, mas não é somado. Com ele, o total seria R$ 2.108.105." },
@@ -119,7 +119,7 @@ const PONTOS = [
   { tema: "Referência errada no Mapinguari", g: "Baixa", impacto: null,
     texto: "O cachê do Mapinguari (Detalhamento!Q11) aponta para o total da Poesia ao Pé do Ouvido (E141) em vez de E126. Hoje os dois valem R$ 37.000." },
   { tema: "Nomes e posições na planilha", g: "Baixa", impacto: null,
-    texto: "RR e MT aparecem como \"-\" na aba ORÇAMENTO; MT está no bloco de Música, mas é somado em Teatro; o terceiro bloco de exposição se chama \"Carta para o corpo preto\", mas é Cacau Ruby." },
+    texto: "O grupo de RR está como \"Apresentação em Artes Cênicas\", que parece um nome provisório; MT está no bloco de Música da aba ORÇAMENTO, mas é somado em Teatro; o terceiro bloco de exposição se chama \"Carta para o corpo preto\", mas é Cacau Ruby." },
   { tema: "Tabela de referência antiga", g: "Baixa", impacto: 1339000, rotulo: "Total da tabela",
     texto: "A tabela de referências da aba ORÇAMENTO ainda soma transfer de R$ 70.000 por regional e licenciamento de filmes. Ela não entra em nenhum cálculo e pode confundir." },
 ];
