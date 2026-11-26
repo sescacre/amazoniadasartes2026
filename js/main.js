@@ -1,241 +1,330 @@
-/* Renderização da página: abertura, gráficos, tabela, pontos de atenção, referências e tema.
-   Depende de js/dados.js (GRUPOS, RUBRICAS, REFERENCIAS, PROGRAMACAO, PONTOS). */
+/* Montagem do painel: indicadores, rosca das rubricas, composição, linguagens, tabela de grupos,
+   pontos de atenção, referências e circulação.
+   Depende de js/dados.js (FONTE, REGIONAIS, GRUPOS, RUBRICAS, REFERENCIAS, CORREDORES, TRECHOS_AEREOS,
+   ROTEIRO_EXPOSICOES, PONTOS) e de js/util.js (FMT, soma, el, svgEl, cor, Tooltip...). */
 
-/* ================= Utilidades ================= */
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const BRL2 = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
-const NUM = new Intl.NumberFormat("pt-BR");
-const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
-const brlShort = v => v >= 1e6 ? "R$ " + (v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + " mi" : "R$ " + Math.round(v / 1e3).toLocaleString("pt-BR") + " mil";
-const el = (tag, attrs = {}, ...kids) => {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === "class") e.className = v; else if (k === "style") e.style.cssText = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
-  }
-  e.append(...kids.flat().filter(k => k != null));
-  return e;
+/* ================= Números derivados ================= */
+const TOTAL = soma(RUBRICAS, r => r.valor);
+const DESPESAS_REGIONAIS = RUBRICAS.filter(r => r.regional != null); // custo fixo de cada regional
+const TOTAL_FIXO = soma(DESPESAS_REGIONAIS, r => r.valor);
+const TOTAL_GRUPOS = TOTAL - TOTAL_FIXO;
+const RUBRICAS_ORDENADAS = [...RUBRICAS].sort(maiorPrimeiro("valor"));
+const MAIOR_RUBRICA = RUBRICAS_ORDENADAS[0];
+
+const ehExposicao = g => g.linguagem === "Artes Visuais";
+const EXPOSICOES = GRUPOS.filter(ehExposicao).length;
+const NGRUPOS = GRUPOS.length - EXPOSICOES;
+const ARTISTAS = soma(GRUPOS, g => g.integrantes);
+// Aéreo que aparece na planilha mas não entra no total geral (exposições)
+const AEREO_FORA = soma(GRUPOS.filter(g => g.aereoForaDoTotal), g => g.aereo);
+
+// Linguagens na ordem em que aparecem nos dados, cada uma com sua cor
+const LINGUAGENS = [...new Set(GRUPOS.map(g => g.linguagem))];
+const COR_LINGUAGEM = {
+  "Circo": "--urucum", "Dança": "--flor", "Teatro": "--river", "Artes Visuais": "--warn",
+  "Audiovisual": "--muted", "Literatura": "--olive", "Música": "--sun-deep",
 };
-const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
+const COR_RUBRICA = ["--river", "--urucum", "--olive", "--sun-deep", "--flor", "--bad", "--warn", "--muted", "--ink"]; // por ordem de valor
 
-const LINGUAGENS = ["Circo", "Dança", "Teatro", "Artes Visuais", "Audiovisual", "Literatura", "Música"];
-const LANG_COLOR = { "Circo": "--urucum", "Dança": "--flor", "Teatro": "--river", "Artes Visuais": "--warn", "Audiovisual": "--muted", "Literatura": "--olive", "Música": "--sun-deep" };
+const parteDoTotal = v => FMT.pct(v / TOTAL);
+const pontoLinguagem = l => el("span", { class: "dot", style: "background:" + cor(COR_LINGUAGEM[l]) });
 
-/* ================= Tooltip ================= */
-const tip = document.getElementById("tip");
-function showTip(evt, title, lines) {
-  tip.replaceChildren(el("strong", {}, title), ...lines.map(([k, v]) => el("div", {}, el("span", { class: "k" }, k + ": "), v)));
-  tip.hidden = false;
-  const r = evt.currentTarget.getBoundingClientRect();
-  const x = evt.clientX ?? (r.left + r.width / 2), y = evt.clientY ?? r.top;
-  const w = tip.offsetWidth, h = tip.offsetHeight;
-  let left = Math.min(window.innerWidth - w - 8, Math.max(8, x + 12));
-  let top = y + 16; if (top + h > window.innerHeight - 8) top = y - h - 12;
-  tip.style.left = left + "px"; tip.style.top = Math.max(8, top) + "px";
-}
-const hideTip = () => { tip.hidden = true; };
-window.addEventListener("scroll", hideTip, { passive: true });
-
-/* ================= Totais ================= */
-const TOTAL = sum(RUBRICAS, r => r.valor);
-const FILMES = GRUPOS.filter(g => g.linguagem === "Audiovisual").length;
-const NGRUPOS = GRUPOS.length - FILMES;
-const ARTISTAS = sum(GRUPOS, g => g.integrantes);
-const topRub = [...RUBRICAS].sort((a, b) => b.valor - a.valor)[0];
-
-/* ================= Abertura ================= */
-function renderHero() {
-  const lead = document.getElementById("lead");
-  lead.replaceChildren(
-    "O orçamento soma ", el("b", {}, BRL.format(TOTAL)), " para levar ", el("b", {}, NGRUPOS + " grupos"), " e ", el("b", {}, FILMES + " filmes"),
-    " a 10 regionais do Sesc. O maior gasto é o ", el("b", {}, topRub.nome.toLowerCase()), ", com ", el("b", {}, PCT.format(topRub.valor / TOTAL)), " do total."
-  );
-  const items = [
-    ["Orçamento total", BRL.format(TOTAL), "Todas as rubricas"],
-    ["Média por regional", BRL.format(TOTAL / 10), "Total dividido por 10"],
-    ["Grupos e filmes", NGRUPOS + " + " + FILMES, "Grupos que circulam + filmes"],
-    ["Artistas", NUM.format(ARTISTAS), "Integrantes de todos os grupos"],
+/* ================= Indicadores ================= */
+function renderIndicadores() {
+  const itens = [
+    { rotulo: "Orçamento total", valor: FMT.brl(TOTAL), legenda: RUBRICAS.length + " rubricas somadas", cor: "--river" },
+    { rotulo: "Média por regional", valor: FMT.brl(TOTAL / REGIONAIS), legenda: "Total ÷ " + REGIONAIS + " regionais", cor: "--olive" },
+    { rotulo: "Grupos", valor: FMT.num(NGRUPOS), legenda: "Circulam pelos " + REGIONAIS + " regionais", cor: "--urucum" },
+    { rotulo: "Exposições", valor: FMT.num(EXPOSICOES), legenda: "Em 3 ou 4 regionais cada", cor: "--sun-deep" },
+    { rotulo: "Artistas", valor: FMT.num(ARTISTAS), legenda: "Integrantes de grupos e exposições", cor: "--flor" },
+    { rotulo: "Maior rubrica", valor: MAIOR_RUBRICA.nome, legenda: parteDoTotal(MAIOR_RUBRICA.valor) + " do total · " + FMT.brlCurto(MAIOR_RUBRICA.valor), cor: "--forest-2" },
   ];
-  document.getElementById("kpis").replaceChildren(...items.map(([l, v, s]) => el("div", { class: "kpi" }, el("p", {}, l), el("strong", {}, v), el("p", {}, s))));
+  $("kpis").replaceChildren(...itens.map(i => el("div", { class: "kpi", style: "--accent:" + cor(i.cor) },
+    el("p", { class: "k-label" }, i.rotulo),
+    el("strong", { class: "k-value", title: i.valor }, i.valor),
+    el("p", { class: "k-sub" }, i.legenda))));
 }
 
 /* ================= Rosca das rubricas ================= */
-function renderDonut() {
-  const box = document.getElementById("donut"), legend = document.getElementById("legend");
-  const colors = ["--river", "--urucum", "--olive", "--sun-deep", "--flor", "--bad", "--muted", "--ink"].map(css);
-  const data = [...RUBRICAS].sort((a, b) => b.valor - a.valor);
-  const R = 100, r = 64, cx = 100, cy = 100;
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 200 200"); svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Gráfico de rosca das rubricas: " + data.map(d => d.nome + " " + PCT.format(d.valor / TOTAL)).join(", "));
-  const center = el("div", { class: "donut-center" });
-  const setCenter = d => center.replaceChildren(el("strong", {}, d ? BRL.format(d.valor) : brlShort(TOTAL)), el("span", {}, d ? d.nome + " · " + PCT.format(d.valor / TOTAL) : "orçamento total"));
-  setCenter();
-  let a0 = -Math.PI / 2;
-  const paths = [], rows = [];
-  const highlight = i => {
-    paths.forEach((p, j) => p.style.opacity = i == null || i === j ? 1 : .3);
-    rows.forEach((li, j) => li.classList.toggle("on", i === j));
-    setCenter(i == null ? null : data[i]);
-  };
-  data.forEach((d, i) => {
-    const a1 = a0 + (d.valor / TOTAL) * Math.PI * 2, gap = 0.012;
-    const s = a0 + gap, e = a1 - gap, large = e - s > Math.PI ? 1 : 0;
-    const P = (ang, rad) => [cx + rad * Math.cos(ang), cy + rad * Math.sin(ang)];
-    const [x1, y1] = P(s, R), [x2, y2] = P(e, R), [x3, y3] = P(e, r), [x4, y4] = P(s, r);
-    const p = document.createElementNS(ns, "path");
-    p.setAttribute("d", `M${x1},${y1} A${R},${R} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 ${large} 0 ${x4},${y4}Z`);
-    p.setAttribute("fill", colors[i]); p.setAttribute("tabindex", "0");
-    const lines = [["Valor", BRL.format(d.valor)], ["Parte do total", PCT.format(d.valor / TOTAL)], ["O que é", d.detalhe], ["Cálculo", d.base]];
-    p.addEventListener("mouseenter", ev => { highlight(i); showTip(ev, d.nome, lines); });
-    p.addEventListener("mousemove", ev => showTip(ev, d.nome, lines));
-    p.addEventListener("mouseleave", () => { highlight(null); hideTip(); });
-    p.addEventListener("focus", () => highlight(i)); p.addEventListener("blur", () => highlight(null));
-    p.addEventListener("click", () => highlight(i));
-    svg.appendChild(p); paths.push(p);
-    const li = el("li", { tabindex: "0", onmouseenter: () => highlight(i), onmouseleave: () => highlight(null), onfocus: () => highlight(i), onblur: () => highlight(null) },
-      el("i", { style: "background:" + colors[i] }),
-      el("span", {}, d.nome),
-      el("span", { class: "v" }, el("b", {}, BRL.format(d.valor)), PCT.format(d.valor / TOTAL)));
-    legend.appendChild(li); rows.push(li);
-    a0 = a1;
-  });
-  box.replaceChildren(svg, center);
-  legend.replaceChildren(...rows);
+// Caminho SVG de uma fatia de rosca entre os ângulos a0 e a1 (radianos)
+function fatia(a0, a1, R = 100, r = 64, c = 100) {
+  const p = (ang, raio) => [c + raio * Math.cos(ang), c + raio * Math.sin(ang)].join(",");
+  const grande = a1 - a0 > Math.PI ? 1 : 0;
+  return `M${p(a0, R)} A${R},${R} 0 ${grande} 1 ${p(a1, R)} L${p(a1, r)} A${r},${r} 0 ${grande} 0 ${p(a0, r)}Z`;
 }
 
-/* ================= Barras por linguagem ================= */
+function renderRosca() {
+  const dados = RUBRICAS_ORDENADAS;
+  const svg = svgEl("svg", { viewBox: "0 0 200 200", role: "img",
+    "aria-label": "Gráfico de rosca das rubricas: " + dados.map(d => d.nome + " " + parteDoTotal(d.valor)).join(", ") });
+  const centro = el("div", { class: "donut-center" });
+  const mostrarCentro = d => centro.replaceChildren(
+    el("strong", {}, d ? FMT.brl(d.valor) : FMT.brlCurto(TOTAL)),
+    el("span", {}, d ? d.nome + " · " + parteDoTotal(d.valor) : "orçamento total"));
+
+  const fatias = [], itens = [];
+  const destacar = i => {
+    fatias.forEach((f, j) => { f.style.opacity = i == null || i === j ? 1 : .3; });
+    itens.forEach((li, j) => li.classList.toggle("on", i === j));
+    mostrarCentro(dados[i]);
+  };
+
+  let angulo = -Math.PI / 2;
+  const folga = 0.012;
+  dados.forEach((d, i) => {
+    const fim = angulo + d.valor / TOTAL * Math.PI * 2;
+    const tom = cor(COR_RUBRICA[i]);
+    const linhas = [["Valor", FMT.brl(d.valor)], ["Parte do total", parteDoTotal(d.valor)], ["O que é", d.detalhe], ["Cálculo", d.base]];
+    const eventos = { aoEntrar: () => destacar(i), aoSair: () => destacar(null) };
+
+    const path = svgEl("path", { d: fatia(angulo + folga, fim - folga), "aria-label": d.nome + ": " + FMT.brl(d.valor) });
+    path.style.fill = tom;
+    fatias.push(Tooltip.ligar(path, d.nome, linhas, eventos));
+
+    itens.push(Tooltip.ligar(el("li", {},
+      el("i", { style: "background:" + tom }),
+      el("span", {}, d.nome),
+      el("span", { class: "v" }, FMT.brl(d.valor)),
+      el("span", { class: "p" }, parteDoTotal(d.valor)),
+      el("span", { class: "lbar" }, el("i", { style: `width:${d.valor / dados[0].valor * 100}%;background:${tom}` }))),
+      d.nome, linhas, eventos));
+
+    angulo = fim;
+  });
+
+  svg.append(...fatias);
+  mostrarCentro(null);
+  $("donut").replaceChildren(svg, centro);
+  $("legend").replaceChildren(...itens);
+}
+
+/* ================= Composição: grupos x despesas por regional ================= */
+function renderComposicao() {
+  const partes = [
+    { nome: "Grupos e exposições", inclui: "Cachê, custo de produção, hospedagem e transfer", valor: TOTAL_GRUPOS, cor: cor("--river") },
+    { nome: "Despesas por regional", inclui: DESPESAS_REGIONAIS.map(r => r.nome.toLowerCase()).join(", "), valor: TOTAL_FIXO, cor: cor("--sun-deep") },
+  ];
+  $("split").replaceChildren(
+    el("div", { class: "split-bar", role: "img", "aria-label": partes.map(p => p.nome + " " + parteDoTotal(p.valor)).join(", ") },
+      partes.map(p => Tooltip.ligar(el("span", { style: `width:${p.valor / TOTAL * 100}%;background:${p.cor}` }),
+        p.nome, [["Valor", FMT.brl(p.valor)], ["Parte do total", parteDoTotal(p.valor)], ["Inclui", p.inclui]]))),
+    el("div", { class: "split-legend" }, partes.map(p => el("div", {},
+      el("span", { class: "s-label" }, el("i", { style: "background:" + p.cor }), p.nome),
+      el("strong", {}, FMT.brl(p.valor)),
+      el("span", { class: "s-pct" }, parteDoTotal(p.valor) + " do total")))));
+
+  preencherTabela($("fixoTbl"), {
+    cabecalho: ["Rubrica", "Por regional", "× " + REGIONAIS],
+    linhas: [...DESPESAS_REGIONAIS].sort(maiorPrimeiro("regional")).map(r => [r.nome, FMT.brl(r.regional), FMT.brl(r.valor)]),
+    rodape: ["Total", FMT.brl(soma(DESPESAS_REGIONAIS, r => r.regional)), FMT.brl(TOTAL_FIXO)],
+  });
+}
+
+/* ================= Linguagens (seção opcional) ================= */
 function porLinguagem() {
   return LINGUAGENS.map(l => {
     const gs = GRUPOS.filter(g => g.linguagem === l);
-    const cache = sum(gs, g => g.cache * g.mult), producao = sum(gs, g => g.producao * g.mult), hospedagem = sum(gs, g => g.hospedagem * g.mult);
-    return { l, cache, producao, hospedagem, total: cache + producao + hospedagem, artistas: sum(gs, g => g.integrantes), n: gs.length };
-  }).sort((a, b) => b.total - a.total);
-}
-function renderLang(animate) {
-  const data = porLinguagem();
-  const parts = [["cache", "Cachê", css("--river")], ["producao", "Custo de produção", css("--olive")], ["hospedagem", "Hospedagem", css("--urucum")]];
-  document.getElementById("keys").replaceChildren(...parts.map(([, n, c]) => el("span", {}, el("i", { style: "background:" + c }), n)));
-  const max = Math.max(...data.map(d => d.total));
-  const bars = data.map(d => {
-    const lines = [...parts.map(([k, n]) => [n, BRL.format(d[k])]), ["Total", BRL.format(d.total)], ["Grupos ou filmes", String(d.n)]];
-    const stack = el("div", { class: "stack", style: `width:${animate ? 0 : d.total / max * 100}%` },
-      parts.map(([k, , c]) => el("span", { style: `width:${d[k] / d.total * 100}%;background:${c}` })));
-    const row = el("div", { class: "bar", tabindex: "0", onmousemove: ev => showTip(ev, d.l, lines), onmouseleave: hideTip },
-      el("span", { class: "name" }, d.l), el("span", { class: "val" }, BRL.format(d.total)), el("div", { class: "track" }, stack));
-    if (animate) requestAnimationFrame(() => requestAnimationFrame(() => { stack.style.width = d.total / max * 100 + "%"; }));
-    return row;
+    const total = campo => soma(gs, g => g[campo]);
+    const cache = total("cache"), producao = total("producao"), hospedagem = total("hospedagem");
+    const transfer = soma(gs, g => g.terrestre + (g.aereoForaDoTotal ? 0 : g.aereo));
+    const artistas = total("integrantes"), subtotal = total("total");
+    return { l, cache, producao, hospedagem, transfer, artistas, n: gs.length, total: subtotal, porArtista: subtotal / artistas };
   });
-  bars.forEach(b => b.querySelector(".stack").style.transition = "width .7s cubic-bezier(.2,.7,.2,1)");
-  document.getElementById("langBars").replaceChildren(...bars);
+}
 
-  const per = [...data].map(d => ({ ...d, per: d.total / d.artistas })).sort((a, b) => b.per - a.per);
-  const pmax = Math.max(...per.map(d => d.per));
-  document.getElementById("perArtist").replaceChildren(...per.map(d => {
-    const lines = [["Por artista", BRL.format(d.per)], ["Artistas", String(d.artistas)], ["Total da linguagem", BRL.format(d.total)]];
-    return el("div", { class: "bar", tabindex: "0", onmousemove: ev => showTip(ev, d.l, lines), onmouseleave: hideTip },
-      el("span", { class: "name" }, el("span", { class: "dot", style: "background:" + css(LANG_COLOR[d.l]) }), d.l),
-      el("span", { class: "val" }, BRL.format(d.per)),
-      el("div", { class: "track" }, el("div", { class: "stack", style: `width:${d.per / pmax * 100}%;background:${css(LANG_COLOR[d.l])}` })));
+// Linha de barra horizontal: nome, valor e trilho com o conteúdo (barra simples ou empilhada)
+const linhaBarra = (nome, valor, conteudo, titulo, linhas) => Tooltip.ligar(
+  el("div", { class: "bar" }, el("span", { class: "name" }, nome), el("span", { class: "val" }, valor), el("div", { class: "track" }, conteudo)),
+  titulo, linhas);
+
+function renderLinguagens() {
+  const dados = porLinguagem().sort(maiorPrimeiro("total"));
+  const partes = [["cache", "Cachê", cor("--river")], ["producao", "Custo de produção", cor("--olive")], ["hospedagem", "Hospedagem", cor("--urucum")], ["transfer", "Transfer", cor("--sun-deep")]];
+  const animar = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  $("keys").replaceChildren(...partes.map(([, nome, tom]) => el("span", {}, el("i", { style: "background:" + tom }), nome)));
+
+  const max = dados[0].total;
+  $("langBars").replaceChildren(...dados.map(d => {
+    const largura = d.total / max * 100 + "%";
+    const pilha = el("div", { class: "stack", style: `width:${animar ? 0 : largura};transition:width .7s cubic-bezier(.2,.7,.2,1)` },
+      partes.map(([k, , tom]) => el("span", { style: `width:${d[k] / d.total * 100}%;background:${tom}` })));
+    if (animar) requestAnimationFrame(() => requestAnimationFrame(() => { pilha.style.width = largura; }));
+    return linhaBarra(d.l, FMT.brl(d.total), pilha, d.l,
+      [...partes.map(([k, nome]) => [nome, FMT.brl(d[k])]), ["Total", FMT.brl(d.total)], ["Grupos ou exposições", String(d.n)]]);
   }));
+
+  const porArtista = [...dados].sort(maiorPrimeiro("porArtista"));
+  const pmax = porArtista[0].porArtista;
+  $("perArtist").replaceChildren(...porArtista.map(d => linhaBarra(
+    [pontoLinguagem(d.l), d.l], FMT.brl(d.porArtista),
+    el("div", { class: "stack", style: `width:${d.porArtista / pmax * 100}%;background:${cor(COR_LINGUAGEM[d.l])}` }),
+    d.l, [["Por artista", FMT.brl(d.porArtista)], ["Artistas", String(d.artistas)], ["Total da linguagem", FMT.brl(d.total)]])));
 }
 
-/* ================= Tabela ================= */
-const COLS = [
-  { k: "linguagem", t: "Linguagem", cls: "t-head" },
-  { k: "dr", t: "Estado de origem" },
-  { k: "integrantes", t: "Integrantes", f: NUM.format },
-  { k: "cache", t: "Cachê", f: BRL.format },
-  { k: "producao", t: "Custo de produção", f: BRL.format },
-  { k: "hospedagem", t: "Hospedagem", f: BRL.format },
-  { k: "regional", t: "Por regional", f: BRL.format },
-  { k: "total", t: "Total da circulação", f: BRL.format, cls: "t-total" },
-];
-const state = { lang: "", q: "", sort: null, dir: 1 };
-// Rubricas que não dependem dos grupos (custo fixo de cada regional × 10)
-const DESPESAS_REGIONAIS = RUBRICAS.filter(r => !["Cachês", "Hospedagem", "Custo de produção"].includes(r.nome));
-function renderChips() {
-  const opts = ["", ...LINGUAGENS];
-  document.getElementById("chips").replaceChildren(...opts.map(l => el("button", {
-    class: "chip", type: "button", "aria-pressed": String(state.lang === l),
-    onclick: () => { state.lang = l; renderChips(); renderTable(); }
-  }, l || "Todas")));
-}
-function renderTable() {
-  const tbl = document.getElementById("tbl");
-  tbl.tHead.rows[0].replaceChildren(...COLS.map(c => el("th", { scope: "col", "aria-sort": state.sort === c.k ? (state.dir > 0 ? "ascending" : "descending") : "none" },
-    el("button", { type: "button", onclick: () => { if (state.sort === c.k) state.dir *= -1; else { state.sort = c.k; state.dir = typeof GRUPOS[0][c.k] === "number" ? -1 : 1; } renderTable(); } }, c.t))));
-  const q = state.q.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  let rows = GRUPOS.filter(g => (!state.lang || g.linguagem === state.lang) && (!q || g.dr.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(q)));
-  if (state.sort) rows = [...rows].sort((a, b) => { const x = a[state.sort], y = b[state.sort]; return (typeof x === "number" ? x - y : x.localeCompare(y, "pt-BR")) * state.dir; });
-  const tb = tbl.tBodies[0];
-  tb.replaceChildren(...(rows.length ? rows.map(g => el("tr", {}, COLS.map((c, i) => el("td", { "data-label": c.t, class: c.cls || "" },
-    i === 0 ? el("span", { class: "dot", style: "background:" + css(LANG_COLOR[g.linguagem]) }) : null,
-    c.f ? c.f(g[c.k]) : g[c.k]))))
-    : [el("tr", {}, el("td", { colspan: String(COLS.length), class: "empty" }, "Nenhum grupo encontrado com esse filtro."))]));
-  const foot = [el("tr", {},
-    el("td", {}, rows.length + (rows.length === 1 ? " linha" : " linhas")), el("td"),
-    el("td", { class: "num" }, NUM.format(sum(rows, g => g.integrantes)) + " artistas"), el("td"), el("td"), el("td"), el("td"),
-    el("td", { class: "num" }, BRL.format(sum(rows, g => g.total))))];
-  // Sem filtro: liga o subtotal dos grupos ao total do orçamento somando as despesas por regional
-  if (!state.lang && !q) {
-    foot.push(
-      el("tr", { class: "foot-extra" },
-        el("td", { colspan: String(COLS.length - 1) }, "Despesas por regional (" + DESPESAS_REGIONAIS.map(r => r.nome.toLowerCase()).join(", ") + ")"),
-        el("td", { class: "num" }, BRL.format(sum(DESPESAS_REGIONAIS, r => r.valor)))),
-      el("tr", { class: "foot-total" },
-        el("td", { colspan: String(COLS.length - 1) }, "Total do orçamento"),
-        el("td", { class: "num" }, BRL.format(TOTAL))));
+/* ================= Tabela de grupos ================= */
+const Tabela = (() => {
+  // Aéreo das exposições: aparece na planilha, mas fica fora do total (marcado com *)
+  const celulaAereo = g => g.aereoForaDoTotal
+    ? el("span", { class: "fora", title: "Fora do total geral da planilha" }, FMT.brl(g.aereo), el("sup", {}, "*"))
+    : FMT.brl(g.aereo);
+  const COLUNAS = [
+    { k: "titulo", t: "Grupo", cls: "t-head", f: (v, g) => [pontoLinguagem(g.linguagem), el("span", { class: "t-name" }, v, el("small", {}, g.linguagem + " · " + g.dr))] },
+    { k: "integrantes", t: "Integrantes", f: FMT.num },
+    { k: "regionais", t: "Regionais", f: FMT.num },
+    { k: "cache", t: "Cachê", f: FMT.brl },
+    { k: "producao", t: "Custo de produção", f: FMT.brl },
+    { k: "hospedagem", t: "Hospedagem", f: FMT.brl },
+    { k: "aereo", t: "Transfer aéreo", f: (_, g) => celulaAereo(g) },
+    { k: "terrestre", t: "Transfer terrestre", f: FMT.brl },
+    { k: "total", t: "Total da circulação", f: FMT.brl, cls: "t-total" },
+  ];
+  const estado = { linguagem: "", busca: "", ordem: null, direcao: 1 };
+  const tabela = $("tbl");
+
+  function ordenarPor(k) {
+    if (estado.ordem === k) estado.direcao *= -1;
+    // Números começam do maior; textos, de A a Z
+    else { estado.ordem = k; estado.direcao = typeof GRUPOS[0][k] === "number" ? -1 : 1; }
+    render();
   }
-  tbl.tFoot.replaceChildren(...foot);
-}
-document.getElementById("search").addEventListener("input", e => { state.q = e.target.value; renderTable(); });
 
-/* ================= Pontos de atenção ================= */
-function renderPoints() {
-  document.getElementById("points").replaceChildren(...PONTOS.map(p => el("li", { class: "card point", "data-g": p.g },
+  function filtrar(linguagem) {
+    estado.linguagem = linguagem;
+    renderFiltros();
+    render();
+  }
+
+  function linhasVisiveis() {
+    const busca = semAcento(estado.busca.trim());
+    const casa = g => !busca || semAcento(g.dr + " " + g.titulo).includes(busca);
+    const linhas = GRUPOS.filter(g => (!estado.linguagem || g.linguagem === estado.linguagem) && casa(g));
+    if (!estado.ordem) return linhas;
+    const k = estado.ordem;
+    return [...linhas].sort((a, b) => (typeof a[k] === "number" ? a[k] - b[k] : a[k].localeCompare(b[k], "pt-BR")) * estado.direcao);
+  }
+
+  function renderFiltros() {
+    $("chips").replaceChildren(...["", ...LINGUAGENS].map(l => el("button",
+      { class: "chip", type: "button", "aria-pressed": String(estado.linguagem === l), onclick: () => filtrar(l) },
+      l || "Todas")));
+  }
+
+  function renderCabecalho() {
+    tabela.tHead.rows[0].replaceChildren(...COLUNAS.map(c => el("th", {
+      scope: "col",
+      "aria-sort": estado.ordem !== c.k ? "none" : estado.direcao > 0 ? "ascending" : "descending",
+    }, el("button", { type: "button", onclick: () => ordenarPor(c.k) }, c.t))));
+  }
+
+  function renderCorpo(linhas) {
+    tabela.tBodies[0].replaceChildren(...(linhas.length
+      ? linhas.map(g => el("tr", {}, COLUNAS.map(c => el("td", { "data-label": c.t, class: c.cls },
+        c.f ? c.f(g[c.k], g) : g[c.k]))))
+      : [el("tr", {}, el("td", { colspan: COLUNAS.length, class: "empty" }, "Nenhum grupo encontrado com esse filtro."))]));
+  }
+
+  function renderRodape(linhas) {
+    const vazias = n => Array.from({ length: n }, () => el("td"));
+    const somaBrl = campo => el("td", { class: "num" }, FMT.brl(soma(linhas, campo)));
+    const rodape = [el("tr", {},
+      el("td", {}, linhas.length + (linhas.length === 1 ? " linha" : " linhas")),
+      el("td", { class: "num" }, FMT.num(soma(linhas, g => g.integrantes)) + " artistas"), vazias(1),
+      somaBrl(g => g.cache), somaBrl(g => g.producao), somaBrl(g => g.hospedagem),
+      somaBrl(g => g.aereoForaDoTotal ? 0 : g.aereo), somaBrl(g => g.terrestre),
+      somaBrl(g => g.total))];
+    // Sem filtro: liga o subtotal dos grupos ao total do orçamento somando as despesas por regional
+    if (!estado.linguagem && !estado.busca.trim()) {
+      const linhaTotal = (cls, rotulo, valor) => el("tr", { class: cls },
+        el("td", { colspan: COLUNAS.length - 1 }, rotulo), el("td", { class: "num" }, FMT.brl(valor)));
+      rodape.push(
+        linhaTotal("foot-extra", "Despesas por regional (" + DESPESAS_REGIONAIS.map(r => r.nome.toLowerCase()).join(", ") + ")", TOTAL_FIXO),
+        linhaTotal("foot-total", "Total do orçamento", TOTAL));
+    }
+    tabela.tFoot.replaceChildren(...rodape);
+    const fora = soma(linhas.filter(g => g.aereoForaDoTotal), g => g.aereo);
+    $("notaTabela").hidden = !fora;
+    $("notaTabela").textContent = "* Transfer aéreo das exposições (" + FMT.brl(fora) + ") aparece na planilha, mas não entra no total geral. Por isso não é somado aqui.";
+  }
+
+  function render() {
+    const linhas = linhasVisiveis();
+    renderCabecalho();
+    renderCorpo(linhas);
+    renderRodape(linhas);
+  }
+
+  function iniciar() {
+    $("search").addEventListener("input", e => { estado.busca = e.target.value; render(); });
+    renderFiltros();
+    render();
+  }
+
+  return { iniciar };
+})();
+
+/* ================= Pontos de atenção (seção opcional) ================= */
+function renderPontos() {
+  $("points").replaceChildren(...PONTOS.map(p => el("li", { class: "card point", "data-g": p.g },
     el("div", { class: "point-head" }, el("h3", {}, p.tema), el("span", { class: "badge" }, "Prioridade " + p.g.toLowerCase())),
     el("p", {}, p.texto),
-    p.impacto != null ? el("div", { class: "impact" }, el("span", { class: "k" }, p.rotulo + ": "), el("b", {}, BRL.format(p.impacto))) : null)));
+    p.impacto != null ? el("div", { class: "impact" }, el("span", { class: "k" }, p.rotulo + ": "), el("b", {}, FMT.brl(p.impacto))) : null)));
+  $("fonteAtencao").hidden = false;
 }
 
 /* ================= Referências ================= */
-function refTable(id, rows, withTotal) {
-  const t = document.getElementById(id);
-  t.replaceChildren(
-    el("thead", {}, el("tr", {}, el("th", { scope: "col" }, "Item"), el("th", { scope: "col" }, "Base"), el("th", { scope: "col" }, "Reajustado"))),
-    el("tbody", {}, rows.map(([i, b, v]) => el("tr", {}, el("td", {}, i), el("td", {}, b == null ? "—" : BRL2.format(b)), el("td", {}, BRL2.format(v))))),
-    withTotal ? el("tfoot", {}, el("tr", {}, el("td", {}, "Total"), el("td"), el("td", {}, BRL.format(sum(rows, r => r[2]))))) : null
-  );
+function renderReferencias() {
+  preencherTabela($("refTbl"), {
+    cabecalho: ["Item", "Valor", "Unidade"],
+    linhas: REFERENCIAS.map(([item, valor, unidade]) => [item, FMT.brlCentavos(valor), el("span", { class: "unit" }, unidade)]),
+  });
 }
 
-/* ================= Tema ================= */
-const root = document.documentElement;
-try { const saved = localStorage.getItem("aa-theme"); if (saved) root.dataset.theme = saved; } catch (e) {}
-document.getElementById("themeBtn").addEventListener("click", () => {
-  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  root.dataset.theme = dark ? "light" : "dark";
-  try { localStorage.setItem("aa-theme", root.dataset.theme); } catch (e) {}
-  renderColors();
-});
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => renderColors());
+/* ================= Circulação ================= */
+function renderCirculacao() {
+  const etiqueta = modo => el("span", { class: "tag tag-" + semAcento(modo) }, modo);
 
-/* ================= Navegação ativa ================= */
-const links = [...document.querySelectorAll(".nav a.link")];
-const io = new IntersectionObserver(entries => {
-  entries.forEach(en => { if (en.isIntersecting) links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id)); });
-}, { rootMargin: "-40% 0px -55% 0px" });
-document.querySelectorAll("main section[id]").forEach(s => io.observe(s));
+  preencherTabela($("corredoresTbl"), {
+    cabecalho: ["Corredor", "Mês", "Regionais"],
+    linhas: CORREDORES.map(c => [c.nome, c.mes,
+      el("span", { class: "stops" }, c.regionais.map(([uf, modo]) => el("span", { class: "stop", title: modo }, uf, etiqueta(modo))))]),
+  });
+
+  preencherTabela($("exposTbl"), {
+    cabecalho: ["Exposição", "Regional", "Período"],
+    linhas: ROTEIRO_EXPOSICOES.flatMap(e => e.roteiro.map(([uf, periodo], i) => [
+      i === 0 ? el("span", { class: "t-name" }, e.titulo, el("small", {}, "Origem: " + e.origem)) : "", uf, periodo])),
+  });
+
+  $("trechos").replaceChildren(...TRECHOS_AEREOS.map(t => el("li", {}, t)));
+}
+
+/* ================= Barra superior ================= */
+function iniciarBarraSuperior() {
+  // O tema salvo já foi aplicado por um script no <head>, antes da pintura.
+  // As cores usam var(--token), então trocar o tema não exige redesenhar nada.
+  const raiz = document.documentElement;
+  $("themeBtn").addEventListener("click", () => {
+    const escuro = raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    raiz.dataset.theme = escuro ? "light" : "dark";
+    try { localStorage.setItem("aa-theme", raiz.dataset.theme); } catch (e) { /* armazenamento indisponível */ }
+  });
+  $("printBtn").addEventListener("click", () => print());
+  $("checker").replaceChildren(...Array.from({ length: 240 }, () => el("i")));
+}
 
 /* ================= Início ================= */
-function renderColors() { renderDonut(); renderLang(false); renderTable(); }
-renderHero();
-document.getElementById("checker").replaceChildren(...Array.from({ length: 160 }, () => document.createElement("i")));
-renderDonut();
-renderLang(!matchMedia("(prefers-reduced-motion: reduce)").matches);
-renderChips();
-renderTable();
-renderPoints();
-refTable("refTbl", REFERENCIAS, false);
-refTable("progTbl", PROGRAMACAO, true);
+// Seções com o atributo hidden no HTML não são montadas
+const visivel = id => !$(id).hidden;
+
+document.querySelectorAll("[data-regionais]").forEach(e => { e.textContent = REGIONAIS; });
+document.querySelectorAll("[data-fonte]").forEach(e => { e.textContent = FONTE[e.dataset.fonte]; });
+iniciarBarraSuperior();
+renderIndicadores();
+renderRosca();
+renderComposicao();
+if (visivel("linguagens")) renderLinguagens();
+Tabela.iniciar();
+if (visivel("atencao")) renderPontos();
+renderReferencias();
+renderCirculacao();
